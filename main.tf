@@ -380,7 +380,7 @@ resource "kubernetes_ingress" "app" {
   }
   spec {
     rule {
-      APP_HOST = local.APP_HOST
+      host = local.APP_HOST
       http {
         path {
           path = "/"
