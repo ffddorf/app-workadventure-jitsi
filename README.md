@@ -1,6 +1,6 @@
-# Template for Application on Kubernetes
+# Jistsi for Dorfadventure
 
-This repository serves as a starting point for provisioning Kubernetes infrastructure on the Freifunk Düsseldorf cluster.
+https://jitsi.dev.dorf.world/
 
 ## Requirements
 

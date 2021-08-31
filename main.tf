@@ -1,8 +1,17 @@
-# If applied as is, this template would put up an empty Nginx site at https://k8s-template.dev.dorf.world/
-
 locals {
-  app_name = "k8s-template" # Change to your-thing
-  host = "k8s-template.dev.dorf.world" # Change to your-thing.dev.dorf.world
+  APP_NAME = "workadventure-jitsi"
+  APP_HOST = "jitsi.dev.dorf.world"
+  DOCKER_HOST_ADDRESS = null # Set this to the Internet routable IPv4 address of the node?
+  JICOFO_AUTH_USER = "focus"
+  JVB_AUTH_USER = "jvb"
+  JVB_BREWERY_MUC = "jvbbrewery"
+  JVB_TCP_HARVESTER_DISABLED = "true"
+  TZ = "Europe/Berlin"
+  XMPP_AUTH_DOMAIN = "auth.meet.jitsi"
+  XMPP_DOMAIN = "meet.jitsi"
+  XMPP_INTERNAL_MUC_DOMAIN = "internal-muc.meet.jitsi"
+  XMPP_MUC_DOMAIN = "muc.meet.jitsi"
+  XMPP_SERVER = "localhost"
 }
 
 terraform {
@@ -10,41 +19,299 @@ terraform {
     organization = "ffddorf-dev"
 
     workspaces {
-      prefix = "app-k8s-template-" # Change to app-your-thing-
+      prefix = "app-workadventure-jitsi-"
     }
   }
 }
 
 resource "kubernetes_namespace" "app" {
   metadata {
-    name = "app-${local.app_name}"
+    name = "app-${local.APP_NAME}"
+  }
+}
+
+resource "random_string" "JICOFO_COMPONENT_SECRET" {
+  length = 16
+}
+
+resource "random_string" "JICOFO_AUTH_PASSWORD" {
+  length = 16
+}
+
+resource "random_string" "JVB_AUTH_PASSWORD" {
+  length = 16
+}
+
+resource "kubernetes_secret" "app" {
+  metadata {
+    name = local.APP_NAME
+    namespace = kubernetes_namespace.app.metadata[0].name
+  }
+  data = {
+    JICOFO_COMPONENT_SECRET = random_string.JICOFO_COMPONENT_SECRET.result
+    JICOFO_AUTH_PASSWORD = random_string.JICOFO_AUTH_PASSWORD.result
+    JVB_AUTH_PASSWORD = random_string.JVB_AUTH_PASSWORD.result
   }
 }
 
 resource "kubernetes_deployment" "app" {
   metadata {
-    name = local.app_name
+    name = local.APP_NAME
     namespace = kubernetes_namespace.app.metadata[0].name
     labels = {
-      k8s_app = local.app_name
+      k8s_app = local.APP_NAME
     }
   }
   spec {
     selector {
       match_labels = {
-        k8s_app = local.app_name
+        k8s_app = local.APP_NAME
       }
+    }
+    strategy {
+      type = "Recreate"
     }
     template {
       metadata {
         labels = {
-          k8s_app = local.app_name
+          k8s_app = local.APP_NAME
         }
       }
       spec {
         container {
-          name = local.app_name
-          image = "nginx"
+          name = "jicofo"
+          image = "jitsi/jicofo"
+          env {
+            name = "XMPP_SERVER"
+            value = local.XMPP_SERVER
+          }
+          env {
+            name = "XMPP_DOMAIN"
+            value = local.XMPP_DOMAIN
+          }
+          env {
+            name = "XMPP_AUTH_DOMAIN"
+            value = local.XMPP_AUTH_DOMAIN
+          }
+          env {
+            name = "XMPP_INTERNAL_MUC_DOMAIN"
+            value = local.XMPP_INTERNAL_MUC_DOMAIN
+          }
+          env {
+            name = "JICOFO_COMPONENT_SECRET"
+            value_from {
+              secret_key_ref {
+                name = local.APP_NAME
+                key = "JICOFO_COMPONENT_SECRET"
+              }
+            }
+          }
+          env {
+            name = "JICOFO_AUTH_USER"
+            value = local.JICOFO_AUTH_USER
+          }
+          env {
+            name = "JICOFO_AUTH_PASSWORD"
+            value_from {
+              secret_key_ref {
+                name = local.APP_NAME
+                key = "JICOFO_AUTH_PASSWORD"
+              }
+            }
+          }
+          env {
+            name = "TZ"
+            value = local.TZ
+          }
+          env {
+            name = "JVB_BREWERY_MUC"
+            value = local.JVB_BREWERY_MUC
+          }
+        }
+        container {
+          name = "prosody"
+          image = "jitsi/prosody"
+          env {
+            name = "XMPP_DOMAIN"
+            value = local.XMPP_DOMAIN
+          }
+          env {
+            name = "XMPP_AUTH_DOMAIN"
+            value = local.XMPP_AUTH_DOMAIN
+          }
+          env {
+            name = "XMPP_MUC_DOMAIN"
+            value = local.XMPP_MUC_DOMAIN
+          }
+          env {
+            name = "XMPP_INTERNAL_MUC_DOMAIN"
+            value = local.XMPP_INTERNAL_MUC_DOMAIN
+          }
+          env {
+            name = "JICOFO_COMPONENT_SECRET"
+            value_from {
+              secret_key_ref {
+                name = local.APP_NAME
+                key = "JICOFO_COMPONENT_SECRET"
+              }
+            }
+          }
+          env {
+            name = "JVB_AUTH_USER"
+            value = local.JVB_AUTH_USER
+          }
+          env {
+            name = "JVB_AUTH_PASSWORD"
+            value_from {
+              secret_key_ref {
+                name = local.APP_NAME
+                key = "JVB_AUTH_PASSWORD"
+              }
+            }
+          }
+          env {
+            name = "JICOFO_AUTH_USER"
+            value = local.JICOFO_AUTH_USER
+          }
+          env {
+            name = "JICOFO_AUTH_PASSWORD"
+            value_from {
+              secret_key_ref {
+                name = local.APP_NAME
+                key = "JICOFO_AUTH_PASSWORD"
+              }
+            }
+          }
+          env {
+            name = "TZ"
+            value = local.TZ
+          }
+          env {
+            name = "JVB_TCP_HARVESTER_DISABLED"
+            value = local.JVB_TCP_HARVESTER_DISABLED
+          }
+          env {
+            name = "PUBLIC_URL"
+            value = "https://${local.APP_HOST}"
+          }
+        }
+        container {
+          name = "web"
+          image = "jitsi/web"
+          env {
+            name = "XMPP_SERVER"
+            value = local.XMPP_SERVER
+          }
+          env {
+            name = "JICOFO_AUTH_USER"
+            value = local.JICOFO_AUTH_USER
+          }
+          env {
+            name = "XMPP_DOMAIN"
+            value = local.XMPP_DOMAIN
+          }
+          env {
+            name = "XMPP_AUTH_DOMAIN"
+            value = local.XMPP_AUTH_DOMAIN
+          }
+          env {
+            name = "XMPP_INTERNAL_MUC_DOMAIN"
+            value = local.XMPP_INTERNAL_MUC_DOMAIN
+          }
+          env {
+            name = "XMPP_BOSH_URL_BASE"
+            value = "http://127.0.0.1:5280"
+          }
+          env {
+            name = "XMPP_MUC_DOMAIN"
+            value = local.XMPP_MUC_DOMAIN
+          }
+          env {
+            name = "TZ"
+            value = local.TZ
+          }
+          env {
+            name = "JVB_TCP_HARVESTER_DISABLED"
+            value = local.JVB_TCP_HARVESTER_DISABLED
+          }
+          env {
+            name = "PUBLIC_URL"
+            value = "https://${local.APP_HOST}"
+          }
+        }
+        container {
+          name = "jvb"
+          image = "jitsi/jvb"
+          env {
+            name = "XMPP_SERVER"
+            value = local.XMPP_SERVER
+          }
+          env {
+            name = "DOCKER_HOST_ADDRESS"
+            value = local.DOCKER_HOST_ADDRESS
+          }
+          env {
+            name = "XMPP_DOMAIN"
+            value = local.XMPP_DOMAIN
+          }
+          env {
+            name = "XMPP_AUTH_DOMAIN"
+            value = local.XMPP_AUTH_DOMAIN
+          }
+          env {
+            name = "XMPP_INTERNAL_MUC_DOMAIN"
+            value = local.XMPP_INTERNAL_MUC_DOMAIN
+          }
+          env {
+            name = "JVB_STUN_SERVERS"
+            value = "stun.l.google.com:19302,stun1.l.google.com:19302,stun2.l.google.com:19302"
+          }
+          env {
+            name = "JICOFO_AUTH_USER"
+            value = local.JICOFO_AUTH_USER
+          }
+          env {
+            name = "JVB_TCP_HARVESTER_DISABLED"
+            value = local.JVB_TCP_HARVESTER_DISABLED
+          }
+          env {
+            name = "JVB_AUTH_USER"
+            value = local.JVB_AUTH_USER
+          }
+          env {
+            name = "JVB_PORT"
+            value = "30300"
+          }
+          env {
+            name = "JVB_AUTH_PASSWORD"
+            value_from {
+              secret_key_ref {
+                name = local.APP_NAME
+                key = "JVB_AUTH_PASSWORD"
+              }
+            }
+          }
+          env {
+            name = "JICOFO_AUTH_PASSWORD"
+            value_from {
+              secret_key_ref {
+                name = local.APP_NAME
+                key = "JICOFO_AUTH_PASSWORD"
+              }
+            }
+          }
+          env {
+            name = "JVB_BREWERY_MUC"
+            value = local.JVB_BREWERY_MUC
+          }
+          env {
+            name = "TZ"
+            value = local.TZ
+          }
+          env {
+            name = "PUBLIC_URL"
+            value = "https://${local.APP_HOST}"
+          }
         }
       }
     }
@@ -53,27 +320,55 @@ resource "kubernetes_deployment" "app" {
 
 resource "kubernetes_service" "app" {
   metadata {
-    name = local.app_name
+    name = local.APP_NAME
     namespace = kubernetes_namespace.app.metadata[0].name
     labels = {
-      service = local.app_name
+      service = local.APP_NAME
     }
   }
   spec {
+    selector = {
+      k8s_app = local.APP_NAME
+    }
     port {
       name = "http"
       port = 80
       target_port = 80
     }
+    port {
+      name = "https"
+      port = 443
+      target_port = 443
+    }
+  }
+}
+
+resource "kubernetes_service" "jvb" {
+  metadata {
+    name = "jvb"
+    namespace = kubernetes_namespace.app.metadata[0].name
+    labels = {
+      service = "jvb"
+    }
+  }
+  spec {
+    type = "NodePort"
+    external_traffic_policy = "Cluster"
     selector = {
-      k8s_app = local.app_name
+      k8s_app = local.APP_NAME
+    }
+    port {
+      port = 30300
+      protocol = "UDP"
+      target_port = 30300
+      node_port = 30300
     }
   }
 }
 
 resource "kubernetes_ingress" "app" {
   metadata {
-    name = local.app_name
+    name = local.APP_NAME
     namespace = kubernetes_namespace.app.metadata[0].name
     annotations = {
       "cert-manager.io/cluster-issuer" = "letsencrypt-prod"
@@ -85,12 +380,12 @@ resource "kubernetes_ingress" "app" {
   }
   spec {
     rule {
-      host = local.host
+      APP_HOST = local.APP_HOST
       http {
         path {
           path = "/"
           backend {
-            service_name = local.app_name
+            service_name = local.APP_NAME
             service_port = 80
           }
         }
@@ -98,7 +393,7 @@ resource "kubernetes_ingress" "app" {
     }
     tls {
       secret_name = "letsencrypt-cert"
-      hosts = [local.host]
+      hosts = [local.APP_HOST]
     }
   }
 }
