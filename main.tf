@@ -1,11 +1,19 @@
+variable "PUBLIC_IP_ADDRESS" {
+  type = string
+  default = "45.151.166.29"
+}
+
+variable "JVB_PORT" {
+  type = string
+  default = "10000"
+}
+
 locals {
   APP_NAME = "workadventure-jitsi"
   APP_HOST = "jitsi.dev.dorf.world"
-  PUBLIC_IP_ADDRESS = "45.151.166.29"
   JICOFO_AUTH_USER = "focus"
   JVB_AUTH_USER = "jvb"
   JVB_BREWERY_MUC = "jvbbrewery"
-  JVB_PORT = "10000"
   JVB_TCP_HARVESTER_DISABLED = "true"
   TZ = "Europe/Berlin"
   XMPP_AUTH_DOMAIN = "auth.meet.jitsi"
@@ -249,7 +257,7 @@ resource "kubernetes_deployment" "app" {
           }
           env {
             name = "DOCKER_HOST_ADDRESS"
-            value = local.PUBLIC_IP_ADDRESS
+            value = var.PUBLIC_IP_ADDRESS
           }
           env {
             name = "XMPP_DOMAIN"
@@ -281,7 +289,7 @@ resource "kubernetes_deployment" "app" {
           }
           env {
             name = "JVB_PORT"
-            value = local.JVB_PORT
+            value = var.JVB_PORT
           }
           env {
             name = "JVB_AUTH_PASSWORD"
@@ -336,11 +344,6 @@ resource "kubernetes_service" "app" {
       port = 80
       target_port = 80
     }
-    port {
-      name = "https"
-      port = 443
-      target_port = 443
-    }
   }
 }
 
@@ -360,11 +363,11 @@ resource "kubernetes_service" "jvb" {
     selector = {
       k8s_app = local.APP_NAME
     }
-    load_balancer_ip = local.PUBLIC_IP_ADDRESS
+    load_balancer_ip = var.PUBLIC_IP_ADDRESS
     port {
       protocol = "UDP"
-      port = local.JVB_PORT
-      target_port = local.JVB_PORT
+      port = var.JVB_PORT
+      target_port = var.JVB_PORT
     }
   }
 }
