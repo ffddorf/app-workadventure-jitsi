@@ -1,7 +1,16 @@
+variable "PUBLIC_IP_ADDRESS" {
+  type = string
+  default = "45.151.166.29"
+}
+
+variable "JVB_PORT" {
+  type = string
+  default = "10000"
+}
+
 locals {
   APP_NAME = "workadventure-jitsi"
   APP_HOST = "jitsi.dev.dorf.world"
-  DOCKER_HOST_ADDRESS = null # Set this to the Internet routable IPv4 address of the node?
   JICOFO_AUTH_USER = "focus"
   JVB_AUTH_USER = "jvb"
   JVB_BREWERY_MUC = "jvbbrewery"
@@ -248,7 +257,7 @@ resource "kubernetes_deployment" "app" {
           }
           env {
             name = "DOCKER_HOST_ADDRESS"
-            value = local.DOCKER_HOST_ADDRESS
+            value = var.PUBLIC_IP_ADDRESS
           }
           env {
             name = "XMPP_DOMAIN"
@@ -280,7 +289,7 @@ resource "kubernetes_deployment" "app" {
           }
           env {
             name = "JVB_PORT"
-            value = "30300"
+            value = var.JVB_PORT
           }
           env {
             name = "JVB_AUTH_PASSWORD"
@@ -335,11 +344,6 @@ resource "kubernetes_service" "app" {
       port = 80
       target_port = 80
     }
-    port {
-      name = "https"
-      port = 443
-      target_port = 443
-    }
   }
 }
 
@@ -350,18 +354,20 @@ resource "kubernetes_service" "jvb" {
     labels = {
       service = "jvb"
     }
+    annotations = {
+      "metallb.universe.tf/allow-shared-ip" = "default"
+    }
   }
   spec {
-    type = "NodePort"
-    external_traffic_policy = "Cluster"
+    type = "LoadBalancer"
     selector = {
       k8s_app = local.APP_NAME
     }
+    load_balancer_ip = var.PUBLIC_IP_ADDRESS
     port {
-      port = 30300
       protocol = "UDP"
-      target_port = 30300
-      node_port = 30300
+      port = var.JVB_PORT
+      target_port = var.JVB_PORT
     }
   }
 }
