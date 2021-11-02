@@ -1,3 +1,5 @@
+This repository has been superseded by https://github.com/ffddorf/workadventure-k8s
+
 # Jistsi for Dorfadventure
 
 https://jitsi.dev.dorf.world/
